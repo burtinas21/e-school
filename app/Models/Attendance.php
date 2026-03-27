@@ -86,7 +86,7 @@ class Attendance extends Model
 
     public function getFormattedDateAttribute()
     {
-        return $this->date->format('d,M,Y');
+        return $this->date->format('Y,m,d');
 
     }
 }

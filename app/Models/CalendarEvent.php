@@ -28,8 +28,8 @@ class CalendarEvent extends Model
     ];
 
     protected $casts = [
-        'start_date' => 'date',
-        'end_date' => 'date',
+        'start_date' => 'date:Y-m-d',
+        'end_date' => 'date:Y-m-d',
         'is_recurring' => 'boolean',
         'affects_attendance' => 'boolean',
         'created_at' => 'datetime',
@@ -61,8 +61,9 @@ class CalendarEvent extends Model
         if (!$this->applicable_grades) {
             return true;
         }
-        $grades = explode(',', $this->applicable_grades);
-        return in_array($gradeId, $grades);
+
+        $grades = array_map('trim', explode(',', $this->applicable_grades));
+        return in_array((string)$gradeId, $grades, true) || in_array($gradeId, $grades, true);
     }
 
     /**
@@ -73,8 +74,9 @@ class CalendarEvent extends Model
         if (!$this->applicable_sections) {
             return true;
         }
-        $sections = explode(',', $this->applicable_sections);
-        return in_array($sectionId, $sections);
+
+        $sections = array_map('trim', explode(',', $this->applicable_sections));
+        return in_array((string)$sectionId, $sections, true) || in_array($sectionId, $sections, true);
     }
 
     /**
@@ -123,38 +125,41 @@ class CalendarEvent extends Model
     public static function canMarkAttendance($date, $studentId = null): bool
     {
         $date = $date instanceof Carbon ? $date : Carbon::parse($date);
-        
+
         // 1. Check if it's weekend
         if (self::isWeekend($date)) {
             return false;
         }
-        
+
         // 2. Check if it's a holiday
+        $dateStr = $date->toDateString();
+
         $holidays = self::where('event_type', 'holiday')
-            ->where('start_date', '<=', $date)
-            ->where('end_date', '>=', $date)
+            ->whereDate('start_date', '<=', $dateStr)
+            ->whereDate('end_date', '>=', $dateStr)
             ->where('affects_attendance', true)
             ->get();
-        
+
         if ($holidays->isEmpty()) {
             return true;
         }
-        
+
         // Check student-specific holidays
         if ($studentId) {
             $student = Student::with(['grade', 'section'])->find($studentId);
-            
+
             if ($student) {
                 foreach ($holidays as $holiday) {
-                    if ($holiday->affectsGrade($student->grade_id) || 
-                        $holiday->affectsSection($student->section_id)) {
+                    // Only block if the holiday applies to the student's grade AND section
+                    if ($holiday->affectsGrade($student->grade_id) && $holiday->affectsSection($student->section_id)) {
                         return false;
                     }
                 }
+
                 return true;
             }
         }
-        
+
         return false;
     }
 
@@ -164,24 +169,16 @@ class CalendarEvent extends Model
     public static function getAttendanceBlockReason($date): ?array
     {
         $date = $date instanceof Carbon ? $date : Carbon::parse($date);
-        
-        // Check weekend first
-        if (self::isWeekend($date)) {
-            return [
-                'blocked' => true,
-                'reason' => 'weekend',
-                'message' => 'School is closed on ' . $date->format('l') . ' (weekend)',
-                'date' => $date->format('Y-m-d')
-            ];
-        }
-        
-        // Check holidays
-        $holiday = self::where('event_type', 'holiday')
-            ->where('start_date', '<=', $date)
-            ->where('end_date', '>=', $date)
+
+        // Check holidays first so holiday takes precedence over weekend if both are present.
+        $dateStr = $date->toDateString();
+
+        $holiday = self::whereDate('start_date', '<=', $dateStr)
+            ->whereDate('end_date', '>=', $dateStr)
+            ->where('event_type', 'holiday')
             ->where('affects_attendance', true)
             ->first();
-        
+
         if ($holiday) {
             return [
                 'blocked' => true,
@@ -191,7 +188,17 @@ class CalendarEvent extends Model
                 'date' => $date->format('Y-m-d')
             ];
         }
-        
+
+        // Check weekend
+        if (self::isWeekend($date)) {
+            return [
+                'blocked' => true,
+                'reason' => 'weekend',
+                'message' => 'School is closed on ' . $date->format('l') . ' (weekend)',
+                'date' => $date->format('Y-m-d')
+            ];
+        }
+
         return null;
     }
 
@@ -201,11 +208,11 @@ class CalendarEvent extends Model
     public static function getUpcomingClosures($days = 7): array
     {
         $closures = [];
-        
+
         for ($i = 0; $i < $days; $i++) {
             $date = Carbon::today()->addDays($i);
             $reason = self::getAttendanceBlockReason($date);
-            
+
             if ($reason) {
                 $closures[] = [
                     'date' => $date->format('Y-m-d'),
@@ -217,7 +224,7 @@ class CalendarEvent extends Model
                 ];
             }
         }
-        
+
         return $closures;
     }
 }

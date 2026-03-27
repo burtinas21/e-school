@@ -29,6 +29,14 @@ class TeacherController extends Controller
      */
     public function store(Request $request)
     {
+    if (!auth()->check()) {
+       return response()->json(['success' => false, 'message' => 'Authentication required.'
+       ], 401);
+       }
+    if (auth()->user()->role_id !== 1) {
+       return response()->json(['success' => false, 'message' => 'Unauthorized. Admin access required.'
+       ], 403);
+       }
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
@@ -97,6 +105,15 @@ class TeacherController extends Controller
      */
     public function update(Request $request, $id)
     {
+
+    if (!auth()->check()) {
+       return response()->json(['success' => false, 'message' => 'Authentication required.'
+       ], 401);
+       }
+    if (auth()->user()->role_id !== 1) {
+       return response()->json(['success' => false, 'message' => 'Unauthorized. Admin access required.'
+       ], 403);
+       }
         $teacher = Teacher::find($id);
 
         if (!$teacher) {
@@ -146,6 +163,15 @@ class TeacherController extends Controller
      */
     public function destroy($id)
     {
+
+    if (!auth()->check()) {
+       return response()->json(['success' => false, 'message' => 'Authentication required.'
+       ], 401);
+       }
+    if (auth()->user()->role_id !== 1) {
+       return response()->json(['success' => false, 'message' => 'Unauthorized. Admin access required.'
+       ], 403);
+       }
         $teacher = Teacher::find($id);
 
         if (!$teacher) {

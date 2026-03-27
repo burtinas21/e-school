@@ -33,6 +33,15 @@ class SectionController extends Controller
      */
     public function store(Request $request)
     {
+
+    if (!auth()->check())
+        {
+    return response()->json(['success' => false, 'message' => 'Authentication required.'], 401);
+     }
+    if (auth()->user()->role_id !== 1)
+      {
+    return response()->json(['success' => false, 'message' => 'Unauthorized. Admin access required.'], 403);
+     }
         $validator = Validator::make($request->all(), [
             'grade_id' => 'required|exists:grades,id',
             'name' => 'required|string|max:10',
@@ -103,6 +112,15 @@ class SectionController extends Controller
      */
     public function update(Request $request, $id)
     {
+        if (!auth()->check())
+    {
+      return response()->json(['success' => false, 'message' => 'Authentication required.'], 401);
+        }
+
+    if (auth()->user()->role_id !== 1)
+        {
+    return response()->json(['success' => false, 'message' => 'Unauthorized. Admin access required.'], 403);
+       }
         $section = Section::find($id);
 
         if (!$section) {
@@ -160,6 +178,16 @@ class SectionController extends Controller
      */
     public function destroy($id)
     {
+        if (!auth()->check())
+            {
+                return response()->json(['success' => false, 'message' => 'Authentication required.'
+                ], 401);
+            }
+            if (auth()->user()->role_id !==1)
+                {
+                    return response()->json(['success' => false, 'message' => 'Unauthorized. Admin access required.'
+                    ], 403);
+                }
         $section = Section::find($id);
 
         if (!$section) {
@@ -169,7 +197,7 @@ class SectionController extends Controller
             ], 404);
         }
 
-        // Check if section has students
+        // Check if section has a students
         if ($section->students()->count() > 0) {
             return response()->json([
                 'success' => false,

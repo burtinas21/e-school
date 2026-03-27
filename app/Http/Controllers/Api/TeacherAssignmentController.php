@@ -77,6 +77,14 @@ class TeacherAssignmentController extends Controller
      */
     public function store(Request $request)
     {
+        if (!auth()->check()) {
+       return response()->json(['success' => false, 'message' => 'Authentication required.'
+       ], 401);
+       }
+    if (auth()->user()->role_id !== 1) {
+       return response()->json(['success' => false, 'message' => 'Unauthorized. Admin access required.'
+       ], 403);
+       }
         $validator = Validator::make($request->all(), [
             'teacher_id' => 'required|exists:teachers,id',
             'subject_id' => 'required|exists:subjects,id',
@@ -168,6 +176,14 @@ class TeacherAssignmentController extends Controller
      */
     public function update(Request $request, $id)
     {
+        if (!auth()->check()) {
+       return response()->json(['success' => false, 'message' => 'Authentication required.'
+       ], 401);
+       }
+    if (auth()->user()->role_id !== 1) {
+       return response()->json(['success' => false, 'message' => 'Unauthorized. Admin access required.'
+       ], 403);
+       }
         $assignment = TeacherAssignment::find($id);
 
         if (!$assignment) {
@@ -248,6 +264,14 @@ class TeacherAssignmentController extends Controller
      */
     public function destroy($id)
     {
+         if (!auth()->check()) {
+       return response()->json(['success' => false, 'message' => 'Authentication required.'
+       ], 401);
+       }
+    if (auth()->user()->role_id !== 1) {
+       return response()->json(['success' => false, 'message' => 'Unauthorized. Admin access required.'
+       ], 403);
+       }
         $assignment = TeacherAssignment::find($id);
 
         if (!$assignment) {
@@ -398,6 +422,17 @@ class TeacherAssignmentController extends Controller
      */
     public function bulkStore(Request $request)
     {
+
+    if (!auth()->check())
+        {
+            return response()->json(['success' => false, 'message' => 'Authentication required.'
+            ], 401);
+        }
+         if (auth()->user()->role_id !==1)
+            {
+                return response()->json(['success' => false, 'message' =>'Unathorized. Admin accesss required'
+                ], 403);
+            }
         $validator = Validator::make($request->all(), [
             'assignments' => 'required|array',
             'assignments.*.teacher_id' => 'required|exists:teachers,id',

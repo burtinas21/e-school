@@ -31,6 +31,8 @@ return new class extends Migration
                       /*  optional filtering (null means all grades/ sections) */
             $table->string('applicable_grades', 255)->nullable()
                                    ->comment('comma-separated grade IDs');
+            $table->string('applicable_sections',255)->nullable()
+                                   ->comment('comma-separated grade IDs');
 
                                    /*who create this event */
            $table->foreignId('created_by')->constrained('users')->cascadeOnDelete();

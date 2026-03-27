@@ -5,8 +5,6 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Role;
 use App\Models\User;
-use auth;
-use id;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
@@ -18,6 +16,14 @@ class UserController extends Controller
      */
     public function index(Request $request)
     {
+        // Only admin can list users
+        if (auth()->user()->role_id !== 1) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. Admin access required.'
+            ], 403);
+        }
+
         $query = User::with('role');
 
         // Filter by role
@@ -164,6 +170,14 @@ class UserController extends Controller
      */
     public function destroy($id)
     {
+        // Only admin can delete users
+        if (auth()->user()->role_id !== 1) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. Admin access required.'
+            ], 403);
+        }
+
         $user = User::find($id);
 
         if (!$user) {

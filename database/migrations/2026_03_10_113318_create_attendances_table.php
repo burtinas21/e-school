@@ -27,6 +27,9 @@ return new class extends Migration
                 'permission'
                 ])->default('present');
 
+            /**
+             * to prevent the duplicate  ecord of attendance..
+             */
             $table->unique(['student_id', 'subject_id', 'date', 'period_id'], 'unique_attendance');
 
             $table->timestamps();

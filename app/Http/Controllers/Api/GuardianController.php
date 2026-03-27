@@ -6,23 +6,64 @@ use App\Http\Controllers\Controller;
 use App\Models\Guardian;
 use App\Models\User;
 use App\Models\Student;
+use App\Models\Teacher;
+use App\Models\TeacherAssignment;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 
 class GuardianController extends Controller
 {
     /**
-     * Display a listing of guardians.
+     * Display a listing of guardians (role‑based).
      *
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function index(Request $request)
     {
+        $user = Auth::user();
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
+        }
+
         $query = Guardian::with(['user', 'students.user']);
 
-        // Search by name or email
+        // Apply role‑based filtering
+        if ($user->role_id == 1) { // Admin
+            // no additional filter
+        } elseif ($user->role_id == 2) { // Teacher
+            $teacher = Teacher::where('user_id', $user->id)->first();
+            if ($teacher) {
+                // Get all section IDs the teacher teaches
+                $sectionIds = TeacherAssignment::where('teacher_id', $teacher->id)
+                    ->pluck('section_id')
+                    ->unique();
+                // Get guardian IDs of students in those sections
+                $guardianIds = Student::whereIn('section_id', $sectionIds)
+                    ->whereNotNull('guardian_id')
+                    ->pluck('guardian_id')
+                    ->unique();
+                $query->whereIn('id', $guardianIds);
+            } else {
+                $query->whereRaw('0'); // no assignments → no guardians
+            }
+        } elseif ($user->role_id == 3) { // Student
+            // Students cannot see any guardians (privacy)
+            $query->whereRaw('0');
+        } elseif ($user->role_id == 4) { // Parent
+            $guardian = Guardian::where('user_id', $user->id)->first();
+            if ($guardian) {
+                $query->where('id', $guardian->id);
+            } else {
+                $query->whereRaw('0');
+            }
+        } else {
+            $query->whereRaw('0');
+        }
+
+        // Additional filters
         if ($request->has('search')) {
             $search = $request->search;
             $query->whereHas('user', function($q) use ($search) {
@@ -30,8 +71,6 @@ class GuardianController extends Controller
                   ->orWhere('email', 'like', "%{$search}%");
             });
         }
-
-        // Filter by notification preference
         if ($request->has('receive_notifications')) {
             $query->where('receive_notifications', $request->receive_notifications);
         }
@@ -45,13 +84,20 @@ class GuardianController extends Controller
     }
 
     /**
-     * Store a newly created guardian.
+     * Store a newly created guardian (admin only).
      *
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function store(Request $request)
     {
+        if (!auth()->check()) {
+            return response()->json(['success' => false, 'message' => 'Authentication required.'], 401);
+        }
+        if (auth()->user()->role_id !== 1) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized. Admin access required.'], 403);
+        }
+
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
@@ -95,20 +141,53 @@ class GuardianController extends Controller
     }
 
     /**
-     * Display the specified guardian.
+     * Display the specified guardian (role‑based).
      *
      * @param int $id
      * @return \Illuminate\Http\JsonResponse
      */
     public function show($id)
     {
+        $user = Auth::user();
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
+        }
+
         $guardian = Guardian::with(['user', 'students.user', 'notifications'])->find($id);
 
         if (!$guardian) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Guardian not found'
-            ], 404);
+            return response()->json(['success' => false, 'message' => 'Guardian not found'], 404);
+        }
+
+        $allowed = false;
+
+        if ($user->role_id == 1) { // Admin
+            $allowed = true;
+        } elseif ($user->role_id == 2) { // Teacher
+            $teacher = Teacher::where('user_id', $user->id)->first();
+            if ($teacher) {
+                // Get students linked to this guardian
+                $studentIds = $guardian->students()->pluck('id');
+                // Check if teacher teaches any of those students' sections
+                $allowed = TeacherAssignment::where('teacher_id', $teacher->id)
+                    ->whereIn('section_id', function($query) use ($studentIds) {
+                        $query->select('section_id')
+                              ->from('students')
+                              ->whereIn('id', $studentIds);
+                    })
+                    ->exists();
+            }
+        } elseif ($user->role_id == 3) { // Student
+            $allowed = false; // students cannot see guardians
+        } elseif ($user->role_id == 4) { // Parent
+            $guardianUser = Guardian::where('user_id', $user->id)->first();
+            if ($guardianUser && $guardianUser->id == $guardian->id) {
+                $allowed = true;
+            }
+        }
+
+        if (!$allowed) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
         return response()->json([
@@ -118,7 +197,7 @@ class GuardianController extends Controller
     }
 
     /**
-     * Update the specified guardian.
+     * Update the specified guardian (admin only).
      *
      * @param Request $request
      * @param int $id
@@ -126,6 +205,13 @@ class GuardianController extends Controller
      */
     public function update(Request $request, $id)
     {
+        if (!auth()->check()) {
+            return response()->json(['success' => false, 'message' => 'Authentication required.'], 401);
+        }
+        if (auth()->user()->role_id !== 1) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized. Admin access required.'], 403);
+        }
+
         $guardian = Guardian::find($id);
 
         if (!$guardian) {
@@ -153,26 +239,16 @@ class GuardianController extends Controller
         // Update user if name or phone provided
         if ($request->has('name') || $request->has('phone')) {
             $user = $guardian->user;
-            if ($request->has('name')) {
-                $user->name = $request->name;
-            }
-            if ($request->has('phone')) {
-                $user->phone = $request->phone;
-            }
+            if ($request->has('name')) $user->name = $request->name;
+            if ($request->has('phone')) $user->phone = $request->phone;
             $user->save();
         }
 
         // Update guardian
         $updateData = [];
-        if ($request->has('occupation')) {
-            $updateData['occupation'] = $request->occupation;
-        }
-        if ($request->has('relationship')) {
-            $updateData['relationship'] = $request->relationship;
-        }
-        if ($request->has('receive_notifications')) {
-            $updateData['receive_notifications'] = $request->receive_notifications;
-        }
+        if ($request->has('occupation')) $updateData['occupation'] = $request->occupation;
+        if ($request->has('relationship')) $updateData['relationship'] = $request->relationship;
+        if ($request->has('receive_notifications')) $updateData['receive_notifications'] = $request->receive_notifications;
 
         if (!empty($updateData)) {
             $guardian->update($updateData);
@@ -186,13 +262,20 @@ class GuardianController extends Controller
     }
 
     /**
-     * Remove the specified guardian.
+     * Remove the specified guardian (admin only).
      *
      * @param int $id
      * @return \Illuminate\Http\JsonResponse
      */
     public function destroy($id)
     {
+        if (!auth()->check()) {
+            return response()->json(['success' => false, 'message' => 'Authentication required.'], 401);
+        }
+        if (auth()->user()->role_id !== 1) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized. Admin access required.'], 403);
+        }
+
         $guardian = Guardian::find($id);
 
         if (!$guardian) {
@@ -220,13 +303,18 @@ class GuardianController extends Controller
     }
 
     /**
-     * Get children (students) for a guardian.
+     * Get children (students) for a guardian (role‑based).
      *
      * @param int $id
      * @return \Illuminate\Http\JsonResponse
      */
     public function children($id)
     {
+        $user = Auth::user();
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
+        }
+
         $guardian = Guardian::find($id);
 
         if (!$guardian) {
@@ -234,6 +322,35 @@ class GuardianController extends Controller
                 'success' => false,
                 'message' => 'Guardian not found'
             ], 404);
+        }
+
+        $allowed = false;
+
+        if ($user->role_id == 1) { // Admin
+            $allowed = true;
+        } elseif ($user->role_id == 2) { // Teacher
+            $teacher = Teacher::where('user_id', $user->id)->first();
+            if ($teacher) {
+                $studentIds = $guardian->students()->pluck('id');
+                $allowed = TeacherAssignment::where('teacher_id', $teacher->id)
+                    ->whereIn('section_id', function($query) use ($studentIds) {
+                        $query->select('section_id')
+                              ->from('students')
+                              ->whereIn('id', $studentIds);
+                    })
+                    ->exists();
+            }
+        } elseif ($user->role_id == 4) { // Parent
+            $guardianUser = Guardian::where('user_id', $user->id)->first();
+            if ($guardianUser && $guardianUser->id == $guardian->id) {
+                $allowed = true;
+            }
+        } else {
+            $allowed = false;
+        }
+
+        if (!$allowed) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
         $children = $guardian->students()->with(['user', 'grade', 'section'])->get();
@@ -245,7 +362,7 @@ class GuardianController extends Controller
     }
 
     /**
-     * Link a student to guardian.
+     * Link a student to guardian (admin only).
      *
      * @param Request $request
      * @param int $id
@@ -253,6 +370,13 @@ class GuardianController extends Controller
      */
     public function linkStudent(Request $request, $id)
     {
+        if (!auth()->check()) {
+            return response()->json(['success' => false, 'message' => 'Authentication required.'], 401);
+        }
+        if (auth()->user()->role_id !== 1) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized. Admin access required.'], 403);
+        }
+
         $guardian = Guardian::find($id);
 
         if (!$guardian) {
@@ -285,7 +409,7 @@ class GuardianController extends Controller
     }
 
     /**
-     * Unlink a student from guardian.
+     * Unlink a student from guardian (admin only).
      *
      * @param int $guardianId
      * @param int $studentId
@@ -293,6 +417,13 @@ class GuardianController extends Controller
      */
     public function unlinkStudent($guardianId, $studentId)
     {
+        if (!auth()->check()) {
+            return response()->json(['success' => false, 'message' => 'Authentication required.'], 401);
+        }
+        if (auth()->user()->role_id !== 1) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized. Admin access required.'], 403);
+        }
+
         $guardian = Guardian::find($guardianId);
 
         if (!$guardian) {
@@ -323,13 +454,18 @@ class GuardianController extends Controller
     }
 
     /**
-     * Get notification preferences for guardian.
+     * Get notification preferences for guardian (role‑based).
      *
      * @param int $id
      * @return \Illuminate\Http\JsonResponse
      */
     public function notificationPreferences($id)
     {
+        $user = Auth::user();
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
+        }
+
         $guardian = Guardian::find($id);
 
         if (!$guardian) {
@@ -337,6 +473,21 @@ class GuardianController extends Controller
                 'success' => false,
                 'message' => 'Guardian not found'
             ], 404);
+        }
+
+        $allowed = false;
+
+        if ($user->role_id == 1) { // Admin
+            $allowed = true;
+        } elseif ($user->role_id == 4) { // Parent
+            $guardianUser = Guardian::where('user_id', $user->id)->first();
+            if ($guardianUser && $guardianUser->id == $guardian->id) {
+                $allowed = true;
+            }
+        }
+
+        if (!$allowed) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
         return response()->json([
@@ -349,7 +500,7 @@ class GuardianController extends Controller
     }
 
     /**
-     * Update notification preferences.
+     * Update notification preferences (admin or self).
      *
      * @param Request $request
      * @param int $id
@@ -357,6 +508,11 @@ class GuardianController extends Controller
      */
     public function updateNotificationPreferences(Request $request, $id)
     {
+        $user = Auth::user();
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
+        }
+
         $guardian = Guardian::find($id);
 
         if (!$guardian) {
@@ -364,6 +520,20 @@ class GuardianController extends Controller
                 'success' => false,
                 'message' => 'Guardian not found'
             ], 404);
+        }
+
+        $allowed = false;
+        if ($user->role_id == 1) {
+            $allowed = true;
+        } elseif ($user->role_id == 4) {
+            $guardianUser = Guardian::where('user_id', $user->id)->first();
+            if ($guardianUser && $guardianUser->id == $guardian->id) {
+                $allowed = true;
+            }
+        }
+
+        if (!$allowed) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
         $validator = Validator::make($request->all(), [

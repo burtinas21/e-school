@@ -12,9 +12,14 @@ class PeriodController extends Controller
     /**
      * Display a listing of periods.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $periods = Period::orderBy('period_number')->get();
+        $query = Period::query();
+        if ($request->has('is_active'))
+            {
+                $query->where('is_active', $request->is_active);
+            }
+        $periods = Period::orderBy('period_number')->paginate($request->per_page ?? 15);
 
         return response()->json([
             'success' => true,
@@ -27,6 +32,14 @@ class PeriodController extends Controller
      */
     public function store(Request $request)
     {
+        if (!auth()->check()) {
+       return response()->json(['success' => false, 'message' => 'Authentication required.'
+       ], 401);
+       }
+    if (auth()->user()->role_id !== 1) {
+       return response()->json(['success' => false, 'message' => 'Unauthorized. Admin access required.'
+       ], 403);
+       }
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:50',
             'period_number' => 'required|integer|unique:periods',
@@ -78,6 +91,14 @@ class PeriodController extends Controller
      */
     public function update(Request $request, $id)
     {
+        if (!auth()->check()) {
+       return response()->json(['success' => false, 'message' => 'Authentication required.'
+       ], 401);
+       }
+    if (auth()->user()->role_id !== 1) {
+       return response()->json(['success' => false, 'message' => 'Unauthorized. Admin access required.'
+       ], 403);
+       }
         $period = Period::find($id);
 
         if (!$period) {
@@ -118,6 +139,14 @@ class PeriodController extends Controller
      */
     public function destroy($id)
     {
+        if (!auth()->check()) {
+       return response()->json(['success' => false, 'message' => 'Authentication required.'
+       ], 401);
+       }
+    if (auth()->user()->role_id !== 1) {
+       return response()->json(['success' => false, 'message' => 'Unauthorized. Admin access required.'
+       ], 403);
+       }
         $period = Period::find($id);
 
         if (!$period) {

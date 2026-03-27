@@ -21,6 +21,8 @@ class DatabaseSeeder extends Seeder
             RoleSeeder::class,
             GradeSeeder::class,
             PeriodSeeder::class,
+            SectionSeeder::class,
+            SubjectSeeder::class,
             UserSeeder::class,  // depend on level 1
             // level 3: Depends on level 2
 
@@ -30,7 +32,7 @@ class DatabaseSeeder extends Seeder
             // level 4: depends on level 1& 2
 
             SectionSeeder::class,
-            TeacherAssignment::class,
+            TeacherAssignmentSeeder::class,
 
 
             // level 6 : depends on level 5
