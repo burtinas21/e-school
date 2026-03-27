@@ -29,11 +29,22 @@ class SectionFactory extends Factory
         $sections = ['A', 'B', 'C', 'D'];
 
         return [
-            // This will automatically create a Grade and use its ID
+            /**  This will automatically create a Grade and use its ID
+             * */
+
             'grade_id' => Grade::factory(),
             'name' => $this->faker->randomElement($sections),
             'is_active' => $this->faker->boolean(95), // 95% chance active
         ];
+    }
+    /**
+     * indicate that the section is active..
+     */
+    public function active():static
+    {
+        return $this->state(fn (array $attributes) => [
+            'is_active' => true,
+        ]);
     }
 
     /**
