@@ -16,6 +16,16 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 
 class AttendanceController extends Controller
 {
+
+
+/**
+ * @group Attendance
+ *
+ * Mark Attendance
+ *
+ * @authenticated
+ */
+
     /**
      * Get attendance for a specific class/date (teacher/admin only)
      */
