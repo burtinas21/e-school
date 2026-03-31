@@ -20,6 +20,8 @@ return [
     'allowed_origins' => [
         'http://localhost:5173',     // Vue development server
         'http://127.0.0.1:5173',     // Alternative local address
+        'http://localhost:5178',     // Current Vue dev server port
+        'http://127.0.0.1:5178',     // Alternative local address
     ],
 
     'allowed_origins_patterns' => [],
