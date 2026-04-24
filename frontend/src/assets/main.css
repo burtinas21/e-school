@@ -1,0 +1,107 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-primary: 'Inter', system-ui, -apple-system, sans-serif;
+  --bg-slate-50: #f8fafc;
+  --bg-white: #ffffff;
+}
+
+/* Dark mode transition */
+html.dark {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-secondary-50 text-secondary-900 transition-colors duration-300;
+  font-family: var(--font-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.dark body {
+  @apply bg-secondary-950 text-secondary-100;
+}
+
+/* Smooth transitions for interactive elements */
+a, button, input, select {
+  @apply transition-all duration-200;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-secondary-300 rounded-full;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  @apply bg-secondary-700;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-secondary-400;
+}
+
+/* Typography Enhancements */
+h1, h2, h3, h4, h5, h6 {
+  @apply font-bold tracking-tight text-secondary-900;
+}
+
+.dark h1, .dark h2, .dark h3, .dark h4, .dark h5, .dark h6 {
+  @apply text-white;
+}
+
+/* Card glassmorphism effect */
+.glass-card {
+  @apply bg-white/80 backdrop-blur-md border border-white/20 shadow-premium;
+}
+
+.dark .glass-card {
+  @apply bg-secondary-900/80 border-white/10;
+}
+
+/* Table styling */
+.table-container {
+  @apply overflow-x-auto rounded-2xl border border-secondary-200 bg-white;
+}
+
+.dark .table-container {
+  @apply border-secondary-800 bg-secondary-900;
+}
+
+table {
+  @apply w-full text-left border-collapse;
+}
+
+th {
+  @apply px-6 py-4 text-xs font-bold uppercase tracking-wider text-secondary-500 bg-secondary-50/50;
+}
+
+.dark th {
+  @apply text-secondary-400 bg-secondary-800/50;
+}
+
+td {
+  @apply px-6 py-4 text-sm border-t border-secondary-100;
+}
+
+.dark td {
+  @apply border-secondary-800;
+}
+
+tr:hover td {
+  @apply bg-secondary-50/50;
+}
+
+.dark tr:hover td {
+  @apply bg-secondary-800/50;
+}
